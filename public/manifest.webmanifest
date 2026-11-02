@@ -1,0 +1,16 @@
+{
+  "name": "BinBeat // Procedural Binaural Entrainment Lab",
+  "short_name": "BinBeat",
+  "description": "Zero-asset multi-stage binaural entrainment and procedural sound synthesizer",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#070a12",
+  "theme_color": "#070a12",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

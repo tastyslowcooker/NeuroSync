@@ -1,0 +1,1538 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NeuroSync // Procedural Binaural Entrainment Lab</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            slate: {
+              850: '#141c2b',
+              900: '#0d131f',
+              950: '#070a12',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      background-color: #070a12;
+      color: #e2e8f0;
+      overflow-x: hidden;
+    }
+    /* Custom Range Sliders */
+    input[type=range] {
+      -webkit-appearance: none;
+      appearance: none;
+      background: transparent;
+      cursor: pointer;
+    }
+    input[type=range]::-webkit-slider-runnable-track {
+      background: rgba(51, 65, 85, 0.7);
+      height: 6px;
+      border-radius: 999px;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      margin-top: -5px;
+      background-color: #38bdf8;
+      height: 16px;
+      width: 16px;
+      border-radius: 50%;
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.8);
+      transition: transform 0.15s ease, background-color 0.15s ease;
+    }
+    input[type=range]::-webkit-slider-thumb:hover {
+      transform: scale(1.2);
+      background-color: #7dd3fc;
+    }
+    .glass-panel {
+      background: rgba(13, 19, 31, 0.82);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(51, 65, 85, 0.45);
+    }
+    .glow-cyan {
+      box-shadow: 0 0 25px -5px rgba(56, 189, 248, 0.3);
+    }
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #070a12;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1e293b;
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #334155;
+    }
+  </style>
+</head>
+<body class="min-h-screen font-sans selection:bg-sky-500/30 selection:text-sky-200 flex flex-col">
+
+<!-- Top Header Bar -->
+<header class="border-b border-slate-800/80 bg-slate-950/90 sticky top-0 z-30 backdrop-blur-md">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3">
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-sky-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-sky-500/20">
+        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/>
+        </svg>
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <h1 class="font-bold text-base sm:text-lg tracking-tight text-white">NEURO<span class="text-sky-400">SYNC</span></h1>
+          <span class="text-[10px] font-mono uppercase px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20">100% Math DSP</span>
+        </div>
+        <p class="text-xs text-slate-400 hidden sm:block">Zero-Asset Multi-Stage Binaural Entrainment Synthesizer</p>
+      </div>
+    </div>
+
+    <!-- Diagnostic & System Status Bar -->
+    <div class="flex items-center gap-2 sm:gap-3 flex-wrap">
+      <!-- Stereo Verification Test (Jody Hatton style) -->
+      <div class="flex items-center bg-slate-900 border border-slate-800 rounded-lg p-1 text-xs">
+        <span class="px-2 text-slate-400 hidden md:inline">Stereo Check:</span>
+        <button id="earTestBoth" onclick="setEarIsolation('both')" class="px-2.5 py-1 rounded-md bg-sky-500/20 text-sky-300 font-medium transition">L+R</button>
+        <button id="earTestLeft" onclick="setEarIsolation('left')" class="px-2.5 py-1 rounded-md text-slate-400 hover:text-white transition" title="Mute Left Ear - If you still hear a pulsing beat in your right ear, turn off spatial audio/Dolby!">Mute L</button>
+        <button id="earTestRight" onclick="setEarIsolation('right')" class="px-2.5 py-1 rounded-md text-slate-400 hover:text-white transition" title="Mute Right Ear - If you still hear a pulsing beat in your left ear, turn off spatial audio/Dolby!">Mute R</button>
+      </div>
+
+      <!-- Wake Lock Toggle -->
+      <button id="wakeLockBtn" onclick="toggleWakeLock()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-xs text-slate-400 hover:text-slate-200 transition">
+        <span id="wakeLockDot" class="w-2 h-2 rounded-full bg-slate-600"></span>
+        <span id="wakeLockText">Wake Lock: Off</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- Main Content Container -->
+<main class="max-w-7xl mx-auto w-full px-4 sm:px-6 py-6 flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+  <!-- Left Column: Visualizers, Transport & Timeline Sequencer (8 Cols) -->
+  <div class="lg:col-span-8 flex flex-col gap-6">
+
+    <!-- Master Transport & Live Telemetry Readout -->
+    <section class="glass-panel rounded-2xl p-5 sm:p-6 glow-cyan relative overflow-hidden">
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800/80 pb-5">
+
+        <!-- Play/Pause & Session Info -->
+        <div class="flex items-center gap-4">
+          <button id="playPauseBtn" onclick="togglePlay()" class="w-14 h-14 rounded-2xl bg-gradient-to-br from-sky-400 to-indigo-600 hover:from-sky-300 hover:to-indigo-500 text-white flex items-center justify-center shadow-lg shadow-sky-500/30 transition transform active:scale-95 shrink-0">
+            <svg id="playIcon" class="w-7 h-7 ml-0.5" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M8 5v14l11-7z"/>
+            </svg>
+            <svg id="pauseIcon" class="w-7 h-7 hidden" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+            </svg>
+          </button>
+          <div>
+            <div class="flex items-center gap-2">
+              <span id="activePresetTitle" class="font-semibold text-lg text-white">90-Min Focused Studying (v2 Style)</span>
+            </div>
+            <div class="flex items-center gap-3 mt-1 text-xs font-mono text-slate-400">
+              <span id="timeElapsedReadout" class="text-sky-400 font-semibold">00:00:00</span>
+              <span>/</span>
+              <span id="timeTotalReadout">01:30:00</span>
+              <span class="text-slate-600">|</span>
+              <span id="currentStageBadge" class="text-indigo-300">Stage 1/6</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Brainwave State Pill -->
+        <div id="brainwaveBandCard" class="px-4 py-2.5 rounded-xl bg-slate-900/90 border border-slate-700/70 flex items-center gap-3 self-start md:self-auto">
+          <div id="bandColorDot" class="w-3.5 h-3.5 rounded-full bg-emerald-400 shadow-[0_0_12px_#34d399]"></div>
+          <div>
+            <div class="flex items-center gap-2">
+              <span id="bandName" class="font-bold text-sm tracking-wide text-white">ALPHA WAVE</span>
+              <span id="bandRange" class="text-[11px] font-mono text-slate-400">(8.0 – 12.9 Hz)</span>
+            </div>
+            <p id="bandDesc" class="text-xs text-slate-400">Calm focus, relaxed alertness & flow entry</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Real-Time Mathematical Frequency Readout Cards -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-5">
+        <div class="bg-slate-900/80 border border-slate-800/90 rounded-xl p-3">
+          <div class="text-[11px] text-slate-400 uppercase tracking-wider font-medium">Binaural Beat Δ</div>
+          <div class="mt-1 flex items-baseline gap-1">
+            <span id="liveBeatHz" class="text-2xl font-mono font-bold text-sky-400">12.00</span>
+            <span class="text-xs font-mono text-slate-400">Hz</span>
+          </div>
+          <div class="text-[11px] text-slate-500 mt-0.5">|fR − fL| Entrainment</div>
+        </div>
+
+        <div class="bg-slate-900/80 border border-slate-800/90 rounded-xl p-3">
+          <div class="text-[11px] text-slate-400 uppercase tracking-wider font-medium">Root Carrier</div>
+          <div class="mt-1 flex items-baseline gap-1">
+            <span id="liveCarrierHz" class="text-2xl font-mono font-bold text-indigo-400">180.0</span>
+            <span class="text-xs font-mono text-slate-400">Hz</span>
+          </div>
+          <div class="text-[11px] text-slate-500 mt-0.5">Center Pitch Reference</div>
+        </div>
+
+        <div class="bg-slate-900/80 border border-slate-800/90 rounded-xl p-3">
+          <div class="text-[11px] text-slate-400 uppercase tracking-wider font-medium">Left Ear (Pan -1)</div>
+          <div class="mt-1 flex items-baseline gap-1">
+            <span id="liveLeftHz" class="text-xl font-mono font-semibold text-emerald-400">174.00</span>
+            <span class="text-xs font-mono text-slate-400">Hz</span>
+          </div>
+          <div class="text-[11px] text-slate-500 mt-0.5">Carrier − (Beat / 2)</div>
+        </div>
+
+        <div class="bg-slate-900/80 border border-slate-800/90 rounded-xl p-3">
+          <div class="text-[11px] text-slate-400 uppercase tracking-wider font-medium">Right Ear (Pan +1)</div>
+          <div class="mt-1 flex items-baseline gap-1">
+            <span id="liveRightHz" class="text-xl font-mono font-semibold text-amber-400">186.00</span>
+            <span class="text-xs font-mono text-slate-400">Hz</span>
+          </div>
+          <div class="text-[11px] text-slate-500 mt-0.5">Carrier + (Beat / 2)</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Interactive Multi-Stage Timeline Graph (Click/Drag to Scrub anywhere in 90m or 8h session) -->
+    <section class="glass-panel rounded-2xl p-5 flex flex-col gap-3">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h2 class="text-sm font-semibold text-white flex items-center gap-2 flex-wrap">
+            <span>Multi-Stage Entrainment Timeline</span>
+            <span id="modeIndicatorBadge" class="text-[11px] font-mono px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">Dynamic Sequence</span>
+            <span class="flex items-center gap-3 text-[11px] font-mono ml-1">
+                                <span class="flex items-center gap-1 text-sky-400"><span class="w-2.5 h-0.5 bg-sky-400 inline-block"></span>Beat (Hz)</span>
+                                <span class="flex items-center gap-1 text-indigo-400"><span class="w-2.5 h-0.5 border-b border-dashed border-indigo-400 inline-block"></span>Carrier (Hz)</span>
+                            </span>
+          </h2>
+          <p class="text-xs text-slate-400">Click or drag anywhere on the curve to scrub through Beat & Carrier ramps</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="resetTimeline()" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 transition">Restart (0:00)</button>
+          <button onclick="toggleStageEditor()" class="px-3 py-1 rounded-lg bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/30 text-xs font-medium transition flex items-center gap-1">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+            <span>Edit Stages</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Timeline Canvas Wrapper -->
+      <div class="relative w-full h-48 sm:h-56 bg-slate-950/90 rounded-xl border border-slate-800/90 overflow-hidden cursor-ew-resize">
+        <canvas id="timelineCanvas" class="w-full h-full block"></canvas>
+      </div>
+
+      <!-- Expandable Custom Stage Builder Panel -->
+      <div id="stageEditorPanel" class="hidden mt-2 pt-4 border-t border-slate-800/80 flex flex-col gap-3">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <h3 class="text-xs font-semibold uppercase tracking-wider text-sky-400">Custom Sequence Stage Builder</h3>
+          <div class="flex items-center gap-2">
+            <button onclick="addSequenceStage()" class="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 text-xs font-medium transition">+ Add Stage</button>
+            <button onclick="saveCustomPresetToStorage()" class="px-2.5 py-1 rounded-lg bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/30 text-xs font-medium transition">Save to Browser</button>
+          </div>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse text-xs">
+            <thead>
+            <tr class="border-b border-slate-800 text-slate-400 font-mono">
+              <th class="py-2 px-2">#</th>
+              <th class="py-2 px-2">Stage Name</th>
+              <th class="py-2 px-2">Duration (Min)</th>
+              <th class="py-2 px-2">Start Beat (Hz)</th>
+              <th class="py-2 px-2">End Beat (Hz)</th>
+              <th class="py-2 px-2">Start Carrier (Hz)</th>
+              <th class="py-2 px-2">End Carrier (Hz)</th>
+              <th class="py-2 px-2 text-right">Action</th>
+            </tr>
+            </thead>
+            <tbody id="stageEditorRows" class="divide-y divide-slate-800/60 font-mono">
+            <!-- Populated dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Dual-Wave Interference & Lissajous Phase Oscilloscope -->
+    <section class="glass-panel rounded-2xl p-5 flex flex-col gap-3">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-sm font-semibold text-white">Real-Time Binaural Phase Interference & Envelope</h2>
+          <p class="text-xs text-slate-400">Visualizing Left/Right sine displacement and the resulting mathematical amplitude modulation</p>
+        </div>
+        <div class="flex items-center gap-2 text-xs font-mono">
+          <span class="flex items-center gap-1 text-emerald-400"><span class="w-2 h-2 rounded-full bg-emerald-400"></span>L</span>
+          <span class="flex items-center gap-1 text-amber-400"><span class="w-2 h-2 rounded-full bg-amber-400"></span>R</span>
+          <span class="flex items-center gap-1 text-sky-400"><span class="w-2 h-2 rounded-full bg-sky-400"></span>Beat Sum</span>
+        </div>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="md:col-span-2 h-40 bg-slate-950/90 rounded-xl border border-slate-800/90 overflow-hidden relative">
+          <canvas id="waveCanvas" class="w-full h-full block"></canvas>
+          <div class="absolute bottom-2 left-3 text-[10px] font-mono text-slate-500">TIME DOMAIN WAVEFORM INTERFERENCE</div>
+        </div>
+        <div class="h-40 bg-slate-950/90 rounded-xl border border-slate-800/90 overflow-hidden relative">
+          <canvas id="lissajousCanvas" class="w-full h-full block"></canvas>
+          <div class="absolute bottom-2 left-3 text-[10px] font-mono text-slate-500">X-Y PHASE LISSAJOUS</div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Right Column: Presets, Manual Override & Procedural Noise/Drone Mixer (4 Cols) -->
+  <div class="lg:col-span-4 flex flex-col gap-6">
+
+    <!-- Jody Hatton Style Multi-Stage Presets -->
+    <section class="glass-panel rounded-2xl p-5 flex flex-col gap-3">
+      <div class="flex items-center justify-between">
+        <h2 class="text-sm font-semibold text-white">Entrainment Programs</h2>
+        <span class="text-[11px] font-mono text-slate-400">Multi-Stage Curves</span>
+      </div>
+      <div id="presetListContainer" class="flex flex-col gap-2">
+        <!-- Populated by JS -->
+      </div>
+    </section>
+
+    <!-- Manual Override / Static Lock Controls -->
+    <section class="glass-panel rounded-2xl p-5 flex flex-col gap-4">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-sm font-semibold text-white">Manual Frequency Lock</h2>
+          <p class="text-xs text-slate-400">Override timeline to hold a static tone</p>
+        </div>
+        <button id="manualLockBtn" onclick="toggleManualLock()" class="px-3 py-1.5 rounded-xl bg-slate-800 text-slate-300 border border-slate-700 text-xs font-medium transition">
+          Timeline Active
+        </button>
+      </div>
+
+      <!-- Beat Frequency Slider -->
+      <div class="flex flex-col gap-1.5">
+        <div class="flex justify-between text-xs">
+          <label for="manualBeatSlider" class="text-slate-300 font-medium">Binaural Beat Frequency</label>
+          <span id="manualBeatLabel" class="font-mono text-sky-400 font-semibold">12.0 Hz</span>
+        </div>
+        <input id="manualBeatSlider" type="range" min="0.2" max="40" step="0.1" value="12.0" oninput="onManualSliderInput()">
+        <div class="flex justify-between text-[10px] font-mono text-slate-500">
+          <span>0.5Hz Delta</span>
+          <span>6Hz Theta</span>
+          <span>10Hz Alpha</span>
+          <span>18Hz Beta</span>
+          <span>40Hz Gamma</span>
+        </div>
+      </div>
+
+      <!-- Carrier Frequency Slider -->
+      <div class="flex flex-col gap-1.5">
+        <div class="flex justify-between text-xs">
+          <label for="manualCarrierSlider" class="text-slate-300 font-medium">Carrier Pitch (Root Note)</label>
+          <span id="manualCarrierLabel" class="font-mono text-indigo-400 font-semibold">180.0 Hz</span>
+        </div>
+        <input id="manualCarrierSlider" type="range" min="60" max="500" step="0.5" value="180.0" oninput="onManualSliderInput()">
+        <div class="flex justify-between text-[10px] font-mono text-slate-500">
+          <span>60Hz Sub</span>
+          <span>136.1Hz Om</span>
+          <span>180Hz Warm</span>
+          <span>432Hz Crystal</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Procedural Audio Mixer (Pure Sine + Pink/Brown Noise + Sub-Harmonic Drone) -->
+    <section class="glass-panel rounded-2xl p-5 flex flex-col gap-4">
+      <div>
+        <h2 class="text-sm font-semibold text-white">Procedural Acoustic Mixer</h2>
+        <p class="text-xs text-slate-400">Real-time mathematical noise & harmonic synthesis</p>
+      </div>
+
+      <!-- Binaural Sine Volume -->
+      <div class="flex flex-col gap-1.5">
+        <div class="flex justify-between text-xs">
+          <label class="text-slate-300 font-medium">Binaural Pure Sine Gain</label>
+          <span id="binauralVolLabel" class="font-mono text-sky-400">65%</span>
+        </div>
+        <input id="binauralVolSlider" type="range" min="0" max="100" value="65" oninput="updateMixerGains()">
+      </div>
+
+      <!-- Procedural Noise Generator -->
+      <div class="pt-3 border-t border-slate-800/80 flex flex-col gap-3">
+        <div class="flex items-center justify-between">
+          <span class="text-xs text-slate-300 font-medium">Procedural Noise Masking</span>
+          <div class="flex bg-slate-900 p-0.5 rounded-lg border border-slate-800 text-xs">
+            <button id="noiseBtnOff" onclick="setNoiseType('off')" class="px-2.5 py-1 rounded-md text-slate-400 transition">Off</button>
+            <button id="noiseBtnPink" onclick="setNoiseType('pink')" class="px-2.5 py-1 rounded-md text-slate-400 transition">Pink</button>
+            <button id="noiseBtnBrown" onclick="setNoiseType('brown')" class="px-2.5 py-1 rounded-md bg-sky-500/20 text-sky-300 font-medium transition">Brown</button>
+          </div>
+        </div>
+
+        <div class="flex flex-col gap-1.5">
+          <div class="flex justify-between text-xs">
+            <label class="text-slate-400">Noise Level</label>
+            <span id="noiseVolLabel" class="font-mono text-slate-300">35%</span>
+          </div>
+          <input id="noiseVolSlider" type="range" min="0" max="100" value="35" oninput="updateMixerGains()">
+        </div>
+
+        <div class="flex flex-col gap-1.5">
+          <div class="flex justify-between text-xs">
+            <label class="text-slate-400">Low-Pass Warmth Cutoff</label>
+            <span id="noiseCutoffLabel" class="font-mono text-slate-300">420 Hz</span>
+          </div>
+          <input id="noiseCutoffSlider" type="range" min="80" max="2500" step="10" value="420" oninput="updateMixerGains()">
+        </div>
+      </div>
+
+      <!-- Sub-Harmonic Warm Drone Layer -->
+      <div class="pt-3 border-t border-slate-800/80 flex flex-col gap-3">
+        <div class="flex items-center justify-between">
+          <div>
+            <span class="text-xs text-slate-300 font-medium block">Harmonic Acoustic Pad</span>
+            <span class="text-[11px] text-slate-500">Adds subtle -1 Octave / Perfect 5th sine warmth</span>
+          </div>
+          <div class="flex bg-slate-900 p-0.5 rounded-lg border border-slate-800 text-xs">
+            <button id="droneBtnOff" onclick="setDroneMode('off')" class="px-2 py-1 rounded-md text-slate-400 transition">Off</button>
+            <button id="droneBtnOctave" onclick="setDroneMode('octave')" class="px-2 py-1 rounded-md bg-indigo-500/20 text-indigo-300 font-medium transition">-1 Oct</button>
+            <button id="droneBtnFifth" onclick="setDroneMode('fifth')" class="px-2 py-1 rounded-md text-slate-400 transition">+5th</button>
+          </div>
+        </div>
+
+        <div class="flex flex-col gap-1.5">
+          <div class="flex justify-between text-xs">
+            <label class="text-slate-400">Harmonic Drone Level</label>
+            <span id="droneVolLabel" class="font-mono text-slate-300">20%</span>
+          </div>
+          <input id="droneVolSlider" type="range" min="0" max="100" value="20" oninput="updateMixerGains()">
+        </div>
+      </div>
+    </section>
+
+    <!-- Jody Hatton Listening Tip Box -->
+    <div class="rounded-2xl bg-slate-900/60 border border-slate-800/80 p-4 text-xs text-slate-400 leading-relaxed">
+      <div class="font-semibold text-slate-200 mb-1 flex items-center gap-1.5">
+        <svg class="w-4 h-4 text-sky-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        <span>Acoustic Entrainment Advisory</span>
+      </div>
+      Use stereo headphones and disable spatial audio or Dolby Atmos enhancements. Use the <span class="text-sky-300 font-mono">Mute L / Mute R</span> verification buttons at the top: when one ear is muted, the pulsing sensation should vanish completely, leaving a flat pure tone.
+    </div>
+  </div>
+</main>
+
+<!-- Toast Notification Banner -->
+<div id="toastBanner" class="fixed bottom-5 right-5 z-50 hidden px-4 py-3 rounded-xl bg-slate-900 border border-sky-500/40 text-xs text-sky-200 shadow-2xl font-mono"></div>
+
+<script>
+  /* ============================================================================
+   * 1. BUILT-IN MULTI-STAGE PRESETS (Jody Hatton Inspired Dynamic Curves)
+   * ============================================================================ */
+  const BUILTIN_PRESETS = [
+    {
+      id: 'focus-90',
+      name: '90-Min Focused Studying (v2 Style)',
+      badge: '90m Beta/Alpha Wave',
+      description: 'Gentle Alpha induction ramping into cycling Focused Beta waves (14–21 Hz) with dynamic carrier pitch modulation.',
+      noiseType: 'brown',
+      noiseVol: 35,
+      noiseCutoff: 420,
+      droneMode: 'octave',
+      stages: [
+        { label: 'Alpha Warm-Up', durationMin: 10, startBeat: 10.0, endBeat: 14.5, startCarrier: 174.0, endCarrier: 180.0 },
+        { label: 'Deep Focus Climb', durationMin: 20, startBeat: 14.5, endBeat: 20.0, startCarrier: 180.0, endCarrier: 188.0 },
+        { label: 'Sustained Flow Plateau', durationMin: 25, startBeat: 20.0, endBeat: 16.0, startCarrier: 188.0, endCarrier: 182.0 },
+        { label: 'Second Wind Peak', durationMin: 20, startBeat: 16.0, endBeat: 21.5, startCarrier: 182.0, endCarrier: 192.0 },
+        { label: 'Memory Consolidation', durationMin: 10, startBeat: 21.5, endBeat: 12.0, startCarrier: 192.0, endCarrier: 178.0 },
+        { label: 'Alpha Cooldown', durationMin: 5, startBeat: 12.0, endBeat: 10.0, startCarrier: 178.0, endCarrier: 170.0 }
+      ]
+    },
+    {
+      id: 'sleep-8h',
+      name: '8-Hour Full Sleep Cycle (Multi-Stage)',
+      badge: '8h Delta/REM Cycles',
+      description: '45-min descent into 0.5 Hz Deep Delta & sub-100 Hz warm carrier, followed by five 90-minute ultradian sleep cycles.',
+      noiseType: 'brown',
+      noiseVol: 45,
+      noiseCutoff: 260,
+      droneMode: 'octave',
+      stages: [
+        { label: 'Sleep Onset Descent', durationMin: 25, startBeat: 10.0, endBeat: 4.0, startCarrier: 160.0, endCarrier: 125.0 },
+        { label: 'Deep Delta Entry', durationMin: 25, startBeat: 4.0, endBeat: 0.5, startCarrier: 125.0, endCarrier: 98.0 },
+        { label: 'Cycle 1: Deep Rest', durationMin: 65, startBeat: 0.5, endBeat: 1.2, startCarrier: 98.0, endCarrier: 104.0 },
+        { label: 'Cycle 1: REM Theta', durationMin: 25, startBeat: 1.2, endBeat: 5.5, startCarrier: 104.0, endCarrier: 122.0 },
+        { label: 'Cycle 2: Deep Delta', durationMin: 65, startBeat: 5.5, endBeat: 0.6, startCarrier: 122.0, endCarrier: 96.0 },
+        { label: 'Cycle 2: REM Theta', durationMin: 25, startBeat: 0.6, endBeat: 6.0, startCarrier: 96.0, endCarrier: 124.0 },
+        { label: 'Cycle 3: Core Delta', durationMin: 60, startBeat: 6.0, endBeat: 0.8, startCarrier: 124.0, endCarrier: 98.0 },
+        { label: 'Cycle 3: Dream Theta', durationMin: 30, startBeat: 0.8, endBeat: 6.5, startCarrier: 98.0, endCarrier: 128.0 },
+        { label: 'Cycle 4: Light Delta', durationMin: 55, startBeat: 6.5, endBeat: 1.5, startCarrier: 128.0, endCarrier: 108.0 },
+        { label: 'Cycle 4: Extended REM', durationMin: 35, startBeat: 1.5, endBeat: 7.5, startCarrier: 108.0, endCarrier: 132.0 },
+        { label: 'Cycle 5: Morning Theta', durationMin: 50, startBeat: 7.5, endBeat: 4.5, startCarrier: 132.0, endCarrier: 140.0 },
+        { label: 'Natural Awakening Ramp', durationMin: 20, startBeat: 4.5, endBeat: 12.5, startCarrier: 140.0, endCarrier: 176.0 }
+      ]
+    },
+    {
+      id: 'nap-30',
+      name: '30-Min Power Nap (Full Recharge)',
+      badge: '30m Fast Reset',
+      description: 'Rapid ramp down to 3.5 Hz Delta/Theta border with deepening carrier pitch, ending with a bright 18 Hz / 210 Hz wake-up.',
+      noiseType: 'pink',
+      noiseVol: 30,
+      noiseCutoff: 520,
+      droneMode: 'off',
+      stages: [
+        { label: 'Fast Alpha Drop', durationMin: 6, startBeat: 12.0, endBeat: 6.0, startCarrier: 175.0, endCarrier: 148.0 },
+        { label: 'Theta/Delta Border Hold', durationMin: 18, startBeat: 6.0, endBeat: 3.5, startCarrier: 148.0, endCarrier: 132.0 },
+        { label: 'Crisp Beta Re-Awakening', durationMin: 6, startBeat: 3.5, endBeat: 18.0, startCarrier: 132.0, endCarrier: 210.0 }
+      ]
+    },
+    {
+      id: 'meditate-60',
+      name: 'Extra Deep Meditation (60 Min Om)',
+      badge: '60m 136.1Hz Theta',
+      description: 'Smooth descent into 4.5 Hz Shamanic Theta state transitioning from 144 Hz into the 136.1 Hz Cosmic Om and 128 Hz Earth root.',
+      noiseType: 'pink',
+      noiseVol: 25,
+      noiseCutoff: 380,
+      droneMode: 'fifth',
+      stages: [
+        { label: 'Breath Centering', durationMin: 10, startBeat: 11.0, endBeat: 7.83, startCarrier: 144.0, endCarrier: 136.1 },
+        { label: 'Schumann Resonance Hold', durationMin: 15, startBeat: 7.83, endBeat: 6.0, startCarrier: 136.1, endCarrier: 136.1 },
+        { label: 'Deep Theta Immersion', durationMin: 25, startBeat: 6.0, endBeat: 4.5, startCarrier: 136.1, endCarrier: 128.0 },
+        { label: 'Grounding Return', durationMin: 10, startBeat: 4.5, endBeat: 9.5, startCarrier: 128.0, endCarrier: 136.1 }
+      ]
+    }
+  ];
+
+  // Normalize stage objects for backward compatibility with older saved presets
+  function normalizeStages(stages) {
+    return (stages || []).map((s, idx) => {
+      const fallbackCarrier = typeof s.carrier === 'number' && !isNaN(s.carrier) ? s.carrier : 200.0;
+      const startC = typeof s.startCarrier === 'number' && !isNaN(s.startCarrier) ? s.startCarrier : fallbackCarrier;
+      const endC = typeof s.endCarrier === 'number' && !isNaN(s.endCarrier) ? s.endCarrier : startC;
+      return {
+        label: s.label || s.name || `Stage ${idx + 1}`,
+        durationMin: Math.max(0.5, parseFloat(s.durationMin) || 10),
+        startBeat: typeof s.startBeat === 'number' && !isNaN(s.startBeat) ? s.startBeat : 10.0,
+        endBeat: typeof s.endBeat === 'number' && !isNaN(s.endBeat) ? s.endBeat : 10.0,
+        startCarrier: startC,
+        endCarrier: endC
+      };
+    });
+  }
+
+  /* ============================================================================
+   * 2. APPLICATION STATE & TIMELINE SEQUENCER VARIABLES
+   * ============================================================================ */
+  let presets = [...BUILTIN_PRESETS];
+  let activePresetIndex = 0;
+  let currentStages = normalizeStages(BUILTIN_PRESETS[0].stages);
+
+  let isPlaying = false;
+  let isManualLock = false;
+  let earIsolation = 'both'; // 'both' | 'left' | 'right'
+  let noiseType = 'brown';   // 'off' | 'pink' | 'brown'
+  let droneMode = 'octave';  // 'off' | 'octave' | 'fifth'
+
+  let sessionElapsedSec = 0;
+  let lastFrameTime = performance.now();
+
+  // Live computed frequencies
+  let currentBeatHz = 12.0;
+  let currentCarrierHz = 180.0;
+
+  // Wake Lock reference
+  let wakeLockSentinel = null;
+
+  /* ============================================================================
+   * 3. MATHEMATICAL WEB AUDIO API SYNTHESIS ENGINE
+   * ============================================================================ */
+  let audioCtx = null;
+  let leftOsc = null;
+  let rightOsc = null;
+  let leftPanner = null;
+  let rightPanner = null;
+  let leftEarGain = null;
+  let rightEarGain = null;
+  let binauralMasterGain = null;
+
+  // Sub-Harmonic / Fifth Drone Nodes
+  let droneOsc = null;
+  let droneGain = null;
+
+  // Procedural Noise Nodes (ScriptProcessor mathematical Pink & Brown noise)
+  let noiseNode = null;
+  let noiseFilter = null;
+  let noiseGain = null;
+
+  // Pink Noise Paul Kellet state variables
+  let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+  // Brown Noise leaky integrator state variable
+  let lastBrownOut = 0.0;
+
+  function initAudioEngine() {
+    if (audioCtx) return;
+
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    audioCtx = new AudioContextClass();
+
+    // Master Binaural Gain (starts at 0 to prevent click)
+    binauralMasterGain = audioCtx.createGain();
+    binauralMasterGain.gain.setValueAtTime(0.0001, audioCtx.currentTime);
+    binauralMasterGain.connect(audioCtx.destination);
+
+    // Individual Ear Gains for One-Ear Verification Test
+    leftEarGain = audioCtx.createGain();
+    rightEarGain = audioCtx.createGain();
+    leftEarGain.connect(binauralMasterGain);
+    rightEarGain.connect(binauralMasterGain);
+
+    // Hard Left (-1) and Hard Right (+1) Stereo Panners
+    leftPanner = audioCtx.createStereoPanner();
+    rightPanner = audioCtx.createStereoPanner();
+    leftPanner.pan.setValueAtTime(-1.0, audioCtx.currentTime);
+    rightPanner.pan.setValueAtTime(1.0, audioCtx.currentTime);
+    leftPanner.connect(leftEarGain);
+    rightPanner.connect(rightEarGain);
+
+    // Left & Right Pure Sine Oscillators
+    leftOsc = audioCtx.createOscillator();
+    rightOsc = audioCtx.createOscillator();
+    leftOsc.type = 'sine';
+    rightOsc.type = 'sine';
+
+    const leftFreq = Math.max(20, currentCarrierHz - currentBeatHz / 2);
+    const rightFreq = Math.max(20, currentCarrierHz + currentBeatHz / 2);
+    leftOsc.frequency.setValueAtTime(leftFreq, audioCtx.currentTime);
+    rightOsc.frequency.setValueAtTime(rightFreq, audioCtx.currentTime);
+
+    leftOsc.connect(leftPanner);
+    rightOsc.connect(rightPanner);
+    leftOsc.start();
+    rightOsc.start();
+
+    // Sub-Harmonic / 5th Drone Oscillator
+    droneGain = audioCtx.createGain();
+    droneGain.gain.setValueAtTime(0.0001, audioCtx.currentTime);
+    droneGain.connect(audioCtx.destination);
+
+    droneOsc = audioCtx.createOscillator();
+    droneOsc.type = 'sine';
+    droneOsc.frequency.setValueAtTime(currentCarrierHz * 0.5, audioCtx.currentTime);
+    droneOsc.connect(droneGain);
+    droneOsc.start();
+
+    // Procedural Pink & Brown Noise Generator (Zero external files)
+    const bufferSize = 4096;
+    noiseNode = audioCtx.createScriptProcessor(bufferSize, 1, 2);
+    noiseNode.onaudioprocess = function(e) {
+      const outL = e.outputBuffer.getChannelData(0);
+      const outR = e.outputBuffer.getChannelData(1);
+
+      for (let i = 0; i < bufferSize; i++) {
+        if (noiseType === 'off') {
+          outL[i] = 0;
+          outR[i] = 0;
+          continue;
+        }
+
+        const white = Math.random() * 2 - 1;
+        let sample = 0;
+
+        if (noiseType === 'pink') {
+          // Paul Kellet's refined Pink Noise filter approximation
+          b0 = 0.99886 * b0 + white * 0.0555179;
+          b1 = 0.99332 * b1 + white * 0.0750759;
+          b2 = 0.96900 * b2 + white * 0.1538520;
+          b3 = 0.86650 * b3 + white * 0.3104856;
+          b4 = 0.55000 * b4 + white * 0.5329522;
+          b5 = -0.7616 * b5 - white * 0.0168980;
+          sample = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.04;
+          b6 = white * 0.115926;
+        } else {
+          // Mathematical Deep Brown Noise (Leaky Integrator)
+          lastBrownOut = (lastBrownOut + (0.02 * white)) / 1.02;
+          sample = lastBrownOut * 0.85;
+        }
+
+        // Slight stereo decorrelation for spaciousness
+        outL[i] = sample;
+        outR[i] = sample * 0.98 + (Math.random() * 2 - 1) * 0.004;
+      }
+    };
+
+    noiseFilter = audioCtx.createBiquadFilter();
+    noiseFilter.type = 'lowpass';
+    noiseFilter.frequency.setValueAtTime(420, audioCtx.currentTime);
+
+    noiseGain = audioCtx.createGain();
+    noiseGain.gain.setValueAtTime(0.0001, audioCtx.currentTime);
+
+    noiseNode.connect(noiseFilter);
+    noiseFilter.connect(noiseGain);
+    noiseGain.connect(audioCtx.destination);
+  }
+
+  function syncAudioParameters() {
+    if (!audioCtx) return;
+    const now = audioCtx.currentTime;
+
+    const leftFreq = Math.max(20, currentCarrierHz - (currentBeatHz / 2));
+    const rightFreq = Math.max(20, currentCarrierHz + (currentBeatHz / 2));
+
+    leftOsc.frequency.setTargetAtTime(leftFreq, now, 0.05);
+    rightOsc.frequency.setTargetAtTime(rightFreq, now, 0.05);
+
+    // Update Drone Pitch
+    const droneFactor = droneMode === 'fifth' ? 1.5 : 0.5;
+    droneOsc.frequency.setTargetAtTime(currentCarrierHz * droneFactor, now, 0.08);
+  }
+
+  function updateMixerGains() {
+    const binVol = parseFloat(document.getElementById('binauralVolSlider').value) / 100;
+    const nVol = parseFloat(document.getElementById('noiseVolSlider').value) / 100;
+    const nCut = parseFloat(document.getElementById('noiseCutoffSlider').value);
+    const dVol = parseFloat(document.getElementById('droneVolSlider').value) / 100;
+
+    document.getElementById('binauralVolLabel').textContent = `${Math.round(binVol * 100)}%`;
+    document.getElementById('noiseVolLabel').textContent = `${Math.round(nVol * 100)}%`;
+    document.getElementById('noiseCutoffLabel').textContent = `${Math.round(nCut)} Hz`;
+    document.getElementById('droneVolLabel').textContent = `${Math.round(dVol * 100)}%`;
+
+    if (!audioCtx || !isPlaying) return;
+    const now = audioCtx.currentTime;
+
+    binauralMasterGain.gain.setTargetAtTime(binVol * 0.35, now, 0.06);
+    noiseGain.gain.setTargetAtTime(noiseType === 'off' ? 0.0001 : nVol * 0.4, now, 0.06);
+    noiseFilter.frequency.setTargetAtTime(nCut, now, 0.06);
+    droneGain.gain.setTargetAtTime(droneMode === 'off' ? 0.0001 : dVol * 0.14, now, 0.06);
+  }
+
+  function togglePlay() {
+    initAudioEngine();
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+
+    isPlaying = !isPlaying;
+    const now = audioCtx.currentTime;
+
+    const playIcon = document.getElementById('playIcon');
+    const pauseIcon = document.getElementById('pauseIcon');
+
+    if (isPlaying) {
+      playIcon.classList.add('hidden');
+      pauseIcon.classList.remove('hidden');
+      lastFrameTime = performance.now();
+      syncAudioParameters();
+      updateMixerGains();
+    } else {
+      playIcon.classList.remove('hidden');
+      pauseIcon.classList.add('hidden');
+      binauralMasterGain.gain.setTargetAtTime(0.0001, now, 0.08);
+      noiseGain.gain.setTargetAtTime(0.0001, now, 0.08);
+      droneGain.gain.setTargetAtTime(0.0001, now, 0.08);
+    }
+  }
+
+  function setEarIsolation(mode) {
+    earIsolation = mode;
+    document.getElementById('earTestBoth').className = mode === 'both'
+            ? 'px-2.5 py-1 rounded-md bg-sky-500/20 text-sky-300 font-medium transition'
+            : 'px-2.5 py-1 rounded-md text-slate-400 hover:text-white transition';
+    document.getElementById('earTestLeft').className = mode === 'left'
+            ? 'px-2.5 py-1 rounded-md bg-amber-500/20 text-amber-300 font-medium transition'
+            : 'px-2.5 py-1 rounded-md text-slate-400 hover:text-white transition';
+    document.getElementById('earTestRight').className = mode === 'right'
+            ? 'px-2.5 py-1 rounded-md bg-amber-500/20 text-amber-300 font-medium transition'
+            : 'px-2.5 py-1 rounded-md text-slate-400 hover:text-white transition';
+
+    if (!audioCtx) return;
+    const now = audioCtx.currentTime;
+    // 'left' button means "Mute Left Ear"
+    leftEarGain.gain.setTargetAtTime(mode === 'left' ? 0.0 : 1.0, now, 0.04);
+    rightEarGain.gain.setTargetAtTime(mode === 'right' ? 0.0 : 1.0, now, 0.04);
+
+    if (mode !== 'both') {
+      showToast(`Diagnostic Active: ${mode === 'left' ? 'Left' : 'Right'} ear muted. Pulsing should stop if stereo is pure.`);
+    }
+  }
+
+  function setNoiseType(type) {
+    noiseType = type;
+    ['off', 'pink', 'brown'].forEach(t => {
+      const btn = document.getElementById('noiseBtn' + t.charAt(0).toUpperCase() + t.slice(1));
+      btn.className = (t === type)
+              ? 'px-2.5 py-1 rounded-md bg-sky-500/20 text-sky-300 font-medium transition'
+              : 'px-2.5 py-1 rounded-md text-slate-400 transition';
+    });
+    updateMixerGains();
+  }
+
+  function setDroneMode(mode) {
+    droneMode = mode;
+    const map = { off: 'droneBtnOff', octave: 'droneBtnOctave', fifth: 'droneBtnFifth' };
+    Object.keys(map).forEach(k => {
+      const btn = document.getElementById(map[k]);
+      btn.className = (k === mode)
+              ? 'px-2 py-1 rounded-md bg-indigo-500/20 text-indigo-300 font-medium transition'
+              : 'px-2 py-1 rounded-md text-slate-400 transition';
+    });
+    syncAudioParameters();
+    updateMixerGains();
+  }
+
+  /* ============================================================================
+   * 4. MULTI-STAGE SEQUENCER & INTERPOLATION ENGINE
+   * ============================================================================ */
+  function getTotalDurationSeconds() {
+    return currentStages.reduce((acc, s) => acc + Math.max(0.5, parseFloat(s.durationMin) || 1) * 60, 0);
+  }
+
+  function computeSequenceStateAtTime(sec) {
+    const totalSec = getTotalDurationSeconds();
+    const clampedSec = Math.max(0, Math.min(sec, totalSec));
+
+    let accumulated = 0;
+    for (let i = 0; i < currentStages.length; i++) {
+      const stage = currentStages[i];
+      const stageDurSec = Math.max(0.5, parseFloat(stage.durationMin) || 1) * 60;
+
+      if (clampedSec <= accumulated + stageDurSec || i === currentStages.length - 1) {
+        const localSec = clampedSec - accumulated;
+        const progress = Math.max(0, Math.min(1, localSec / stageDurSec));
+        const beat = stage.startBeat + (stage.endBeat - stage.startBeat) * progress;
+        const startC = typeof stage.startCarrier === 'number' ? stage.startCarrier : (stage.carrier || 200);
+        const endC = typeof stage.endCarrier === 'number' ? stage.endCarrier : startC;
+        const carrier = startC + (endC - startC) * progress;
+
+        return {
+          stageIndex: i,
+          stageLabel: stage.label,
+          beatHz: beat,
+          carrierHz: carrier,
+          progress
+        };
+      }
+      accumulated += stageDurSec;
+    }
+    return { stageIndex: 0, stageLabel: 'Init', beatHz: 10, carrierHz: 180, progress: 0 };
+  }
+
+  function formatHMS(totalSeconds) {
+    const s = Math.floor(totalSeconds);
+    const hrs = Math.floor(s / 3600);
+    const mins = Math.floor((s % 3600) / 60);
+    const secs = s % 60;
+    return [hrs, mins, secs].map(v => String(v).padStart(2, '0')).join(':');
+  }
+
+  function getBrainwaveBandInfo(hz) {
+    if (hz < 4.0) {
+      return {
+        name: 'DELTA WAVE',
+        range: '(0.2 – 3.9 Hz)',
+        desc: 'Deep dreamless sleep, cellular restoration & HGH release',
+        dotClass: 'bg-purple-400 shadow-[0_0_12px_#c084fc]'
+      };
+    } else if (hz < 8.0) {
+      return {
+        name: 'THETA WAVE',
+        range: '(4.0 – 7.9 Hz)',
+        desc: 'Deep meditation, REM dreaming, hypnosis & inward intuition',
+        dotClass: 'bg-indigo-400 shadow-[0_0_12px_#818cf8]'
+      };
+    } else if (hz < 13.0) {
+      return {
+        name: 'ALPHA WAVE',
+        range: '(8.0 – 12.9 Hz)',
+        desc: 'Calm focus, relaxed alertness, stress reduction & flow entry',
+        dotClass: 'bg-emerald-400 shadow-[0_0_12px_#34d399]'
+      };
+    } else if (hz <= 30.0) {
+      return {
+        name: 'BETA WAVE',
+        range: '(13.0 – 30.0 Hz)',
+        desc: 'Active analytical concentration, studying & cognitive engagement',
+        dotClass: 'bg-sky-400 shadow-[0_0_12px_#38bdf8]'
+      };
+    } else {
+      return {
+        name: 'GAMMA WAVE',
+        range: '(30.1 – 40.0 Hz)',
+        desc: 'Peak cross-modal binding, high-level synthesis & insight',
+        dotClass: 'bg-rose-400 shadow-[0_0_12px_#fb7185]'
+      };
+    }
+  }
+
+  function updateTelemetryUI(stateInfo) {
+    const leftHz = Math.max(20, currentCarrierHz - currentBeatHz / 2);
+    const rightHz = Math.max(20, currentCarrierHz + currentBeatHz / 2);
+
+    document.getElementById('liveBeatHz').textContent = currentBeatHz.toFixed(2);
+    document.getElementById('liveCarrierHz').textContent = currentCarrierHz.toFixed(1);
+    document.getElementById('liveLeftHz').textContent = leftHz.toFixed(2);
+    document.getElementById('liveRightHz').textContent = rightHz.toFixed(2);
+
+    document.getElementById('timeElapsedReadout').textContent = formatHMS(sessionElapsedSec);
+    document.getElementById('timeTotalReadout').textContent = formatHMS(getTotalDurationSeconds());
+
+    if (isManualLock) {
+      document.getElementById('currentStageBadge').textContent = 'Manual Lock Hold';
+    } else if (stateInfo) {
+      document.getElementById('currentStageBadge').textContent =
+              `Stage ${stateInfo.stageIndex + 1}/${currentStages.length}: ${stateInfo.stageLabel}`;
+      // Keep manual sliders synced visually with sequence
+      document.getElementById('manualBeatSlider').value = currentBeatHz.toFixed(1);
+      document.getElementById('manualCarrierSlider').value = currentCarrierHz.toFixed(1);
+      document.getElementById('manualBeatLabel').textContent = `${currentBeatHz.toFixed(1)} Hz`;
+      document.getElementById('manualCarrierLabel').textContent = `${currentCarrierHz.toFixed(1)} Hz`;
+    }
+
+    // Update Brainwave Indicator
+    const band = getBrainwaveBandInfo(currentBeatHz);
+    document.getElementById('bandName').textContent = band.name;
+    document.getElementById('bandRange').textContent = band.range;
+    document.getElementById('bandDesc').textContent = band.desc;
+    document.getElementById('bandColorDot').className = `w-3.5 h-3.5 rounded-full ${band.dotClass}`;
+  }
+
+  function toggleManualLock() {
+    isManualLock = !isManualLock;
+    const btn = document.getElementById('manualLockBtn');
+    const badge = document.getElementById('modeIndicatorBadge');
+
+    if (isManualLock) {
+      btn.textContent = 'Manual Lock: ON';
+      btn.className = 'px-3 py-1.5 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-500/40 text-xs font-medium transition';
+      badge.textContent = 'Static Manual Override';
+      badge.className = 'text-[11px] font-mono px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30';
+    } else {
+      btn.textContent = 'Timeline Active';
+      btn.className = 'px-3 py-1.5 rounded-xl bg-slate-800 text-slate-300 border border-slate-700 text-xs font-medium transition';
+      badge.textContent = 'Dynamic Sequence';
+      badge.className = 'text-[11px] font-mono px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30';
+    }
+  }
+
+  function onManualSliderInput() {
+    if (!isManualLock) {
+      toggleManualLock();
+    }
+    currentBeatHz = parseFloat(document.getElementById('manualBeatSlider').value);
+    currentCarrierHz = parseFloat(document.getElementById('manualCarrierSlider').value);
+    document.getElementById('manualBeatLabel').textContent = `${currentBeatHz.toFixed(1)} Hz`;
+    document.getElementById('manualCarrierLabel').textContent = `${currentCarrierHz.toFixed(1)} Hz`;
+    syncAudioParameters();
+    updateTelemetryUI();
+  }
+
+  function resetTimeline() {
+    sessionElapsedSec = 0;
+    if (isManualLock) toggleManualLock();
+    const state = computeSequenceStateAtTime(0);
+    currentBeatHz = state.beatHz;
+    currentCarrierHz = state.carrierHz;
+    syncAudioParameters();
+    updateTelemetryUI(state);
+  }
+
+  /* ============================================================================
+   * 5. PRESET MANAGEMENT & STAGE BUILDER UI
+   * ============================================================================ */
+  function loadSavedCustomPreset() {
+    try {
+      const raw = localStorage.getItem('neurosync_custom_preset');
+      if (raw) {
+        const custom = JSON.parse(raw);
+        custom.stages = normalizeStages(custom.stages);
+        presets.push(custom);
+      }
+    } catch (e) {
+      // Ignore storage errors
+    }
+  }
+
+  function renderPresetList() {
+    const container = document.getElementById('presetListContainer');
+    container.innerHTML = '';
+
+    presets.forEach((p, idx) => {
+      const active = idx === activePresetIndex;
+      const card = document.createElement('button');
+      card.className = `w-full text-left p-3.5 rounded-xl border transition flex flex-col gap-1 ${
+              active
+                      ? 'bg-sky-500/15 border-sky-500/50 shadow-md shadow-sky-950/50'
+                      : 'bg-slate-900/70 border-slate-800/80 hover:border-slate-700'
+      }`;
+      card.onclick = () => selectPreset(idx);
+
+      card.innerHTML = `
+                    <div class="flex items-center justify-between gap-2">
+                        <span class="font-semibold text-xs sm:text-sm ${active ? 'text-sky-300' : 'text-white'}">${p.name}</span>
+                        <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300 shrink-0">${p.badge}</span>
+                    </div>
+                    <p class="text-[11px] text-slate-400 line-clamp-2">${p.description}</p>
+                `;
+      container.appendChild(card);
+    });
+  }
+
+  function selectPreset(index) {
+    activePresetIndex = index;
+    const p = presets[index];
+    currentStages = normalizeStages(p.stages);
+    sessionElapsedSec = 0;
+
+    if (isManualLock) toggleManualLock();
+
+    document.getElementById('activePresetTitle').textContent = p.name;
+    document.getElementById('noiseVolSlider').value = p.noiseVol;
+    document.getElementById('noiseCutoffSlider').value = p.noiseCutoff;
+
+    setNoiseType(p.noiseType);
+    setDroneMode(p.droneMode);
+
+    const state = computeSequenceStateAtTime(0);
+    currentBeatHz = state.beatHz;
+    currentCarrierHz = state.carrierHz;
+
+    syncAudioParameters();
+    updateMixerGains();
+    renderPresetList();
+    renderStageEditorTable();
+    updateTelemetryUI(state);
+  }
+
+  function toggleStageEditor() {
+    const panel = document.getElementById('stageEditorPanel');
+    panel.classList.toggle('hidden');
+    renderStageEditorTable();
+  }
+
+  function renderStageEditorTable() {
+    const tbody = document.getElementById('stageEditorRows');
+    tbody.innerHTML = '';
+
+    currentStages.forEach((stage, i) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+                    <td class="py-2 px-2 text-slate-500">${i + 1}</td>
+                    <td class="py-1.5 px-2">
+                        <input type="text" value="${stage.label}" onchange="updateStageField(${i}, 'label', this.value)"
+                            class="w-32 sm:w-40 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-white text-xs">
+                    </td>
+                    <td class="py-1.5 px-2">
+                        <input type="number" min="1" max="300" step="1" value="${stage.durationMin}" onchange="updateStageField(${i}, 'durationMin', parseFloat(this.value))"
+                            class="w-16 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sky-300 text-xs">
+                    </td>
+                    <td class="py-1.5 px-2">
+                        <input type="number" min="0.2" max="40" step="0.1" value="${stage.startBeat}" onchange="updateStageField(${i}, 'startBeat', parseFloat(this.value))"
+                            class="w-16 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-emerald-300 text-xs">
+                    </td>
+                    <td class="py-1.5 px-2">
+                        <input type="number" min="0.2" max="40" step="0.1" value="${stage.endBeat}" onchange="updateStageField(${i}, 'endBeat', parseFloat(this.value))"
+                            class="w-16 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-amber-300 text-xs">
+                    </td>
+                    <td class="py-1.5 px-2">
+                        <input type="number" min="60" max="500" step="0.5" value="${stage.startCarrier}" onchange="updateStageField(${i}, 'startCarrier', parseFloat(this.value))"
+                            class="w-20 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-indigo-300 text-xs">
+                    </td>
+                    <td class="py-1.5 px-2">
+                        <input type="number" min="60" max="500" step="0.5" value="${stage.endCarrier}" onchange="updateStageField(${i}, 'endCarrier', parseFloat(this.value))"
+                            class="w-20 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-purple-300 text-xs">
+                    </td>
+                    <td class="py-1.5 px-2 text-right">
+                        <button onclick="removeSequenceStage(${i})" class="text-rose-400 hover:text-rose-300 px-2 py-1">✕</button>
+                    </td>
+                `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function updateStageField(index, field, value) {
+    if (field === 'label') {
+      currentStages[index][field] = value || `Stage ${index + 1}`;
+    } else {
+      const fallback = (field === 'startCarrier' || field === 'endCarrier') ? 180 : 10;
+      currentStages[index][field] = isNaN(value) ? fallback : value;
+    }
+    const state = computeSequenceStateAtTime(sessionElapsedSec);
+    if (!isManualLock) {
+      currentBeatHz = state.beatHz;
+      currentCarrierHz = state.carrierHz;
+      syncAudioParameters();
+    }
+    updateTelemetryUI(state);
+  }
+
+  function addSequenceStage() {
+    const last = currentStages[currentStages.length - 1] || { endBeat: 10.0, endCarrier: 180.0 };
+    const prevEndBeat = typeof last.endBeat === 'number' ? last.endBeat : 10.0;
+    const prevEndCarrier = typeof last.endCarrier === 'number' ? last.endCarrier : (last.startCarrier || 180.0);
+
+    currentStages.push({
+      label: `Stage ${currentStages.length + 1}`,
+      durationMin: 15,
+      startBeat: prevEndBeat,
+      endBeat: prevEndBeat,
+      startCarrier: prevEndCarrier,
+      endCarrier: prevEndCarrier
+    });
+    renderStageEditorTable();
+  }
+
+  function removeSequenceStage(index) {
+    if (currentStages.length <= 1) {
+      showToast('A sequence must contain at least 1 stage.');
+      return;
+    }
+    currentStages.splice(index, 1);
+    renderStageEditorTable();
+  }
+
+  function saveCustomPresetToStorage() {
+    const totalMin = Math.round(getTotalDurationSeconds() / 60);
+    const customObj = {
+      id: 'custom-user',
+      name: 'Custom User Sequence',
+      badge: `${totalMin}m Custom`,
+      description: 'User-configured multi-stage binaural entrainment sequence saved in browser storage.',
+      noiseType,
+      noiseVol: parseFloat(document.getElementById('noiseVolSlider').value),
+      noiseCutoff: parseFloat(document.getElementById('noiseCutoffSlider').value),
+      droneMode,
+      stages: JSON.parse(JSON.stringify(currentStages))
+    };
+
+    try {
+      localStorage.setItem('neurosync_custom_preset', JSON.stringify(customObj));
+      const existingIdx = presets.findIndex(p => p.id === 'custom-user');
+      if (existingIdx >= 0) {
+        presets[existingIdx] = customObj;
+        activePresetIndex = existingIdx;
+      } else {
+        presets.push(customObj);
+        activePresetIndex = presets.length - 1;
+      }
+      renderPresetList();
+      showToast('Custom multi-stage session saved to browser storage!');
+    } catch (e) {
+      showToast('Could not access localStorage in this frame.');
+    }
+  }
+
+  /* ============================================================================
+   * 6. INTERACTIVE TIMELINE CANVAS & LIVE OSCILLOSCOPE RENDERING
+   * ============================================================================ */
+  const timelineCanvas = document.getElementById('timelineCanvas');
+  const waveCanvas = document.getElementById('waveCanvas');
+  const lissajousCanvas = document.getElementById('lissajousCanvas');
+  let isDraggingTimeline = false;
+  let phaseAccumL = 0;
+  let phaseAccumR = 0;
+
+  function resizeCanvases() {
+    const dpr = window.devicePixelRatio || 1;
+    [timelineCanvas, waveCanvas, lissajousCanvas].forEach(c => {
+      const rect = c.getBoundingClientRect();
+      c.width = rect.width * dpr;
+      c.height = rect.height * dpr;
+    });
+  }
+  window.addEventListener('resize', resizeCanvases);
+
+  function scrubTimelineFromEvent(e) {
+    const rect = timelineCanvas.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const relX = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    sessionElapsedSec = relX * getTotalDurationSeconds();
+
+    if (isManualLock) toggleManualLock();
+    const state = computeSequenceStateAtTime(sessionElapsedSec);
+    currentBeatHz = state.beatHz;
+    currentCarrierHz = state.carrierHz;
+    syncAudioParameters();
+    updateTelemetryUI(state);
+  }
+
+  timelineCanvas.addEventListener('mousedown', e => { isDraggingTimeline = true; scrubTimelineFromEvent(e); });
+  window.addEventListener('mousemove', e => { if (isDraggingTimeline) scrubTimelineFromEvent(e); });
+  window.addEventListener('mouseup', () => { isDraggingTimeline = false; });
+
+  timelineCanvas.addEventListener('touchstart', e => { isDraggingTimeline = true; scrubTimelineFromEvent(e); }, { passive: true });
+  window.addEventListener('touchmove', e => { if (isDraggingTimeline) scrubTimelineFromEvent(e); }, { passive: true });
+  window.addEventListener('touchend', () => { isDraggingTimeline = false; });
+
+  function drawTimelineGraph() {
+    const ctx = timelineCanvas.getContext('2d');
+    const w = timelineCanvas.width;
+    const h = timelineCanvas.height;
+    const dpr = window.devicePixelRatio || 1;
+
+    ctx.clearRect(0, 0, w, h);
+
+    const padTop = 24 * dpr;
+    const padBottom = 26 * dpr;
+    const plotH = h - padTop - padBottom;
+    const maxFreq = 26; // Scale Y axis cleanly for Delta..Beta
+
+    const yForHz = (hz) => {
+      const norm = Math.max(0, Math.min(1, hz / maxFreq));
+      return padTop + plotH * (1 - norm);
+    };
+
+    // Dynamic Carrier Y-axis normalization (60 Hz .. 320 Hz mapped onto plot height)
+    let minCarrier = 90;
+    let maxCarrier = 220;
+    currentStages.forEach(s => {
+      minCarrier = Math.min(minCarrier, s.startCarrier - 15, s.endCarrier - 15);
+      maxCarrier = Math.max(maxCarrier, s.startCarrier + 15, s.endCarrier + 15);
+    });
+    const carrierSpan = Math.max(40, maxCarrier - minCarrier);
+    const yForCarrierHz = (cHz) => {
+      const norm = Math.max(0, Math.min(1, (cHz - minCarrier) / carrierSpan));
+      return padTop + plotH * (1 - norm);
+    };
+
+    // Draw Brainwave Reference Horizontal Bands
+    const bands = [
+      { label: 'DELTA (<4Hz)', hz: 4, color: 'rgba(192, 132, 252, 0.14)' },
+      { label: 'THETA (4-8Hz)', hz: 8, color: 'rgba(129, 140, 248, 0.14)' },
+      { label: 'ALPHA (8-13Hz)', hz: 13, color: 'rgba(52, 211, 153, 0.14)' },
+      { label: 'BETA (13-26Hz)', hz: 26, color: 'rgba(56, 189, 248, 0.14)' }
+    ];
+
+    ctx.font = `${10 * dpr}px "JetBrains Mono", monospace`;
+    bands.forEach(b => {
+      const y = yForHz(b.hz);
+      ctx.strokeStyle = 'rgba(51, 65, 85, 0.5)';
+      ctx.lineWidth = 1 * dpr;
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(w, y);
+      ctx.stroke();
+
+      ctx.fillStyle = 'rgba(148, 163, 184, 0.45)';
+      ctx.fillText(b.label, 8 * dpr, y + 12 * dpr);
+    });
+
+    // Plot Stage Boundaries & Frequency Curve
+    const totalSec = getTotalDurationSeconds();
+    let accumSec = 0;
+
+    // Fill gradient under Beat curve
+    const grad = ctx.createLinearGradient(0, padTop, 0, h - padBottom);
+    grad.addColorStop(0, 'rgba(56, 189, 248, 0.32)');
+    grad.addColorStop(1, 'rgba(99, 102, 241, 0.03)');
+
+    ctx.beginPath();
+    ctx.moveTo(0, h - padBottom);
+
+    currentStages.forEach((stage, idx) => {
+      const stageSec = Math.max(0.5, parseFloat(stage.durationMin) || 1) * 60;
+      const xStart = (accumSec / totalSec) * w;
+      const xEnd = ((accumSec + stageSec) / totalSec) * w;
+      const yStart = yForHz(stage.startBeat);
+      const yEnd = yForHz(stage.endBeat);
+
+      if (idx === 0) ctx.lineTo(xStart, yStart);
+      else ctx.lineTo(xStart, yStart);
+      ctx.lineTo(xEnd, yEnd);
+      accumSec += stageSec;
+    });
+
+    ctx.lineTo(w, h - padBottom);
+    ctx.closePath();
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // Stroke Secondary Dashed Curve for Carrier Frequency Ramp (startCarrier -> endCarrier)
+    accumSec = 0;
+    ctx.save();
+    ctx.setLineDash([5 * dpr, 4 * dpr]);
+    ctx.beginPath();
+    currentStages.forEach((stage, idx) => {
+      const stageSec = Math.max(0.5, parseFloat(stage.durationMin) || 1) * 60;
+      const xStart = (accumSec / totalSec) * w;
+      const xEnd = ((accumSec + stageSec) / totalSec) * w;
+      const yStart = yForCarrierHz(stage.startCarrier);
+      const yEnd = yForCarrierHz(stage.endCarrier);
+
+      if (idx === 0) ctx.moveTo(xStart, yStart);
+      else ctx.lineTo(xStart, yStart);
+      ctx.lineTo(xEnd, yEnd);
+
+      accumSec += stageSec;
+    });
+    ctx.strokeStyle = 'rgba(129, 140, 248, 0.78)';
+    ctx.lineWidth = 2 * dpr;
+    ctx.stroke();
+    ctx.restore();
+
+    // Stroke the primary Beat Frequency curve line
+    accumSec = 0;
+    ctx.beginPath();
+    currentStages.forEach((stage, idx) => {
+      const stageSec = Math.max(0.5, parseFloat(stage.durationMin) || 1) * 60;
+      const xStart = (accumSec / totalSec) * w;
+      const xEnd = ((accumSec + stageSec) / totalSec) * w;
+      const yStart = yForHz(stage.startBeat);
+      const yEnd = yForHz(stage.endBeat);
+
+      if (idx === 0) ctx.moveTo(xStart, yStart);
+      else ctx.lineTo(xStart, yStart);
+      ctx.lineTo(xEnd, yEnd);
+
+      accumSec += stageSec;
+    });
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 2.5 * dpr;
+    ctx.stroke();
+
+    // Stage Divider Dashed Lines & Labels
+    accumSec = 0;
+    currentStages.forEach((stage, idx) => {
+      const stageSec = Math.max(0.5, parseFloat(stage.durationMin) || 1) * 60;
+      const xStart = (accumSec / totalSec) * w;
+      if (idx > 0) {
+        ctx.save();
+        ctx.setLineDash([4 * dpr, 4 * dpr]);
+        ctx.strokeStyle = 'rgba(148, 163, 184, 0.25)';
+        ctx.beginPath();
+        ctx.moveTo(xStart, padTop);
+        ctx.lineTo(xStart, h - padBottom);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      // Stage label at bottom
+      if ((stageSec / totalSec) * w > 55 * dpr) {
+        ctx.fillStyle = 'rgba(203, 213, 225, 0.7)';
+        ctx.fillText(stage.label.substring(0, 14), xStart + 6 * dpr, h - 8 * dpr);
+      }
+      accumSec += stageSec;
+    });
+
+    // Draw Playhead Scrubber
+    const playheadX = (sessionElapsedSec / totalSec) * w;
+    const currentY = yForHz(currentBeatHz);
+    const currentCarrierY = yForCarrierHz(currentCarrierHz);
+
+    ctx.strokeStyle = '#f8fafc';
+    ctx.lineWidth = 1.5 * dpr;
+    ctx.beginPath();
+    ctx.moveTo(playheadX, 0);
+    ctx.lineTo(playheadX, h);
+    ctx.stroke();
+
+    // Glowing Node at Current Carrier Frequency
+    ctx.fillStyle = '#818cf8';
+    ctx.beginPath();
+    ctx.arc(playheadX, currentCarrierY, 4.5 * dpr, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#e0e7ff';
+    ctx.lineWidth = 1.5 * dpr;
+    ctx.stroke();
+
+    // Glowing Node at Current Beat Frequency
+    ctx.fillStyle = '#38bdf8';
+    ctx.beginPath();
+    ctx.arc(playheadX, currentY, 5.5 * dpr, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2 * dpr;
+    ctx.stroke();
+
+    // Live Playhead Readout Pill on Canvas
+    const pillText = `${currentBeatHz.toFixed(1)}Hz Beat | ${currentCarrierHz.toFixed(1)}Hz Carrier`;
+    ctx.font = `600 ${10 * dpr}px "JetBrains Mono", monospace`;
+    const textW = ctx.measureText(pillText).width + 14 * dpr;
+    const pillX = Math.min(w - textW - 6 * dpr, Math.max(6 * dpr, playheadX - textW / 2));
+    const pillY = 4 * dpr;
+
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.45)';
+    ctx.lineWidth = 1 * dpr;
+    ctx.beginPath();
+    ctx.roundRect(pillX, pillY, textW, 17 * dpr, 4 * dpr);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = '#e2e8f0';
+    ctx.fillText(pillText, pillX + 7 * dpr, pillY + 12 * dpr);
+  }
+
+  function drawWaveAndLissajous(dt) {
+    const wCtx = waveCanvas.getContext('2d');
+    const wW = waveCanvas.width;
+    const wH = waveCanvas.height;
+
+    const lCtx = lissajousCanvas.getContext('2d');
+    const lW = lissajousCanvas.width;
+    const lH = lissajousCanvas.height;
+    const dpr = window.devicePixelRatio || 1;
+
+    wCtx.clearRect(0, 0, wW, wH);
+    lCtx.clearRect(0, 0, lW, lH);
+
+    // Advance mathematical phase
+    const speedScale = isPlaying ? 1.0 : 0.15;
+    phaseAccumL += dt * speedScale * (currentCarrierHz - currentBeatHz / 2) * 0.12;
+    phaseAccumR += dt * speedScale * (currentCarrierHz + currentBeatHz / 2) * 0.12;
+
+    const midY = wH * 0.5;
+    const amp = wH * 0.22;
+
+    // Left Ear Sine (Emerald)
+    if (earIsolation !== 'left') {
+      wCtx.beginPath();
+      for (let x = 0; x < wW; x += 2) {
+        const t = (x / wW) * Math.PI * 10;
+        const y = midY + Math.sin(t + phaseAccumL) * amp;
+        if (x === 0) wCtx.moveTo(x, y);
+        else wCtx.lineTo(x, y);
+      }
+      wCtx.strokeStyle = 'rgba(52, 211, 153, 0.55)';
+      wCtx.lineWidth = 1.5 * dpr;
+      wCtx.stroke();
+    }
+
+    // Right Ear Sine (Amber)
+    if (earIsolation !== 'right') {
+      wCtx.beginPath();
+      for (let x = 0; x < wW; x += 2) {
+        const t = (x / wW) * Math.PI * 10;
+        const y = midY + Math.sin(t * (1 + currentBeatHz / currentCarrierHz) + phaseAccumR) * amp;
+        if (x === 0) wCtx.moveTo(x, y);
+        else wCtx.lineTo(x, y);
+      }
+      wCtx.strokeStyle = 'rgba(251, 191, 36, 0.55)';
+      wCtx.lineWidth = 1.5 * dpr;
+      wCtx.stroke();
+    }
+
+    // Combined Binaural Interference Envelope (Sky Cyan)
+    wCtx.beginPath();
+    for (let x = 0; x < wW; x += 2) {
+      const t = (x / wW) * Math.PI * 10;
+      const sL = earIsolation === 'left' ? 0 : Math.sin(t + phaseAccumL);
+      const sR = earIsolation === 'right' ? 0 : Math.sin(t * (1 + currentBeatHz / currentCarrierHz) + phaseAccumR);
+      const sum = (sL + sR) * 0.5;
+      const y = midY + sum * (amp * 1.45);
+      if (x === 0) wCtx.moveTo(x, y);
+      else wCtx.lineTo(x, y);
+    }
+    wCtx.strokeStyle = '#38bdf8';
+    wCtx.lineWidth = 2.2 * dpr;
+    wCtx.stroke();
+
+    // Draw Lissajous X-Y Phase Figure
+    const cx = lW * 0.5;
+    const cy = lH * 0.5;
+    const rad = Math.min(lW, lH) * 0.36;
+
+    lCtx.beginPath();
+    for (let i = 0; i < 220; i++) {
+      const t = (i / 220) * Math.PI * 4;
+      const xVal = earIsolation === 'left' ? 0 : Math.sin(t + phaseAccumL);
+      const yVal = earIsolation === 'right' ? 0 : Math.sin(t * (1 + currentBeatHz / Math.max(80, currentCarrierHz)) + phaseAccumR);
+      const px = cx + xVal * rad;
+      const py = cy + yVal * rad;
+      if (i === 0) lCtx.moveTo(px, py);
+      else lCtx.lineTo(px, py);
+    }
+    lCtx.strokeStyle = '#818cf8';
+    lCtx.lineWidth = 1.8 * dpr;
+    lCtx.stroke();
+  }
+
+  /* ============================================================================
+   * 7. SCREEN WAKE LOCK API & UTILITIES
+   * ============================================================================ */
+  async function toggleWakeLock() {
+    const dot = document.getElementById('wakeLockDot');
+    const txt = document.getElementById('wakeLockText');
+
+    if (!('wakeLock' in navigator)) {
+      showToast('Screen Wake Lock API is not supported on this browser.');
+      return;
+    }
+
+    try {
+      if (wakeLockSentinel) {
+        await wakeLockSentinel.release();
+        wakeLockSentinel = null;
+        dot.className = 'w-2 h-2 rounded-full bg-slate-600';
+        txt.textContent = 'Wake Lock: Off';
+      } else {
+        wakeLockSentinel = await navigator.wakeLock.request('screen');
+        dot.className = 'w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]';
+        txt.textContent = 'Wake Lock: Active';
+        wakeLockSentinel.addEventListener('release', () => {
+          wakeLockSentinel = null;
+          dot.className = 'w-2 h-2 rounded-full bg-slate-600';
+          txt.textContent = 'Wake Lock: Off';
+        });
+      }
+    } catch (err) {
+      showToast('Wake Lock permission blocked by browser/iframe.');
+    }
+  }
+
+  let toastTimer = null;
+  function showToast(msg) {
+    const el = document.getElementById('toastBanner');
+    el.textContent = msg;
+    el.classList.remove('hidden');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.add('hidden'), 4000);
+  }
+
+  /* ============================================================================
+   * 8. MAIN ANIMATION & SEQUENCER LOOP
+   * ============================================================================ */
+  function mainAnimationLoop(now) {
+    const dt = Math.min(0.1, (now - lastFrameTime) / 1000);
+    lastFrameTime = now;
+
+    if (isPlaying && !isManualLock) {
+      const totalSec = getTotalDurationSeconds();
+      sessionElapsedSec += dt;
+      if (sessionElapsedSec >= totalSec) {
+        sessionElapsedSec = 0; // Loop smoothly or finish
+      }
+      const state = computeSequenceStateAtTime(sessionElapsedSec);
+      currentBeatHz = state.beatHz;
+      currentCarrierHz = state.carrierHz;
+      syncAudioParameters();
+      updateTelemetryUI(state);
+    }
+
+    drawTimelineGraph();
+    drawWaveAndLissajous(dt);
+
+    requestAnimationFrame(mainAnimationLoop);
+  }
+
+  window.onload = function() {
+    loadSavedCustomPreset();
+    resizeCanvases();
+    selectPreset(0);
+    requestAnimationFrame(mainAnimationLoop);
+  };
+</script>
+</body>
+</html>
