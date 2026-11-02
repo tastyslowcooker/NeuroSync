@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { BUILTIN_PRESETS, normalizeStages } from '../constants/presets';
+import { getBrainwaveBand } from '../constants/brainwaves';
 import { Preset, Stage } from '../types/preset';
 import { DroneMode, EarIsolation, NoiseType, TelemetryState } from '../types/audio';
 import { audioEngine } from '../audio/AudioEngine';
@@ -34,6 +35,22 @@ export function computeSequenceStateAtTime(sec: number, stages: Stage[]) {
   return { stageIndex: 0, stageLabel: 'Init', beatHz: 10, carrierHz: 180, progress: 0, totalSec };
 }
 
+function updateMediaSessionPosition(elapsedSec: number, totalSec: number, isPlaying: boolean) {
+  if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
+  if (typeof navigator.mediaSession.setPositionState !== 'function') return;
+  if (!Number.isFinite(totalSec) || totalSec <= 0) return;
+
+  try {
+    navigator.mediaSession.setPositionState({
+      duration: totalSec,
+      playbackRate: isPlaying ? 1 : 0,
+      position: Math.max(0, Math.min(elapsedSec, totalSec))
+    });
+  } catch {
+    // Ignore unsupported position state edge cases
+  }
+}
+
 export function useAudioSession() {
   const [presets, setPresets] = useState<Preset[]>(() => {
     try {
@@ -43,7 +60,7 @@ export function useAudioSession() {
         parsed.stages = normalizeStages(parsed.stages);
         return [...BUILTIN_PRESETS, parsed];
       }
-    } catch (e) {
+    } catch {
       // Ignore storage error
     }
     return [...BUILTIN_PRESETS];
@@ -69,7 +86,7 @@ export function useAudioSession() {
   const [beatHz, setBeatHz] = useState(12.0);
   const [carrierHz, setCarrierHz] = useState(180.0);
 
-  // Keep references for animation frame loop
+  // Synchronized refs for callbacks & timers
   const isPlayingRef = useRef(isPlaying);
   isPlayingRef.current = isPlaying;
   const isManualLockRef = useRef(isManualLock);
@@ -77,39 +94,84 @@ export function useAudioSession() {
   const stagesRef = useRef(stages);
   stagesRef.current = stages;
   const elapsedRef = useRef(sessionElapsedSec);
-  elapsedRef.current = sessionElapsedSec;
+  const beatHzRef = useRef(beatHz);
+  beatHzRef.current = beatHz;
+  const carrierHzRef = useRef(carrierHz);
+  carrierHzRef.current = carrierHz;
 
-  const lastFrameTimeRef = useRef(performance.now());
+  const activePreset = presets[activePresetIndex] || presets[0];
+  const activePresetNameRef = useRef(activePreset.name);
+  activePresetNameRef.current = activePreset.name;
 
-  // Setup loop
+  // Sync UI & lock-screen state from the hardware AudioContext timeline
+  const syncFromEngine = useCallback((updateReactState: boolean) => {
+    if (!isPlayingRef.current || isManualLockRef.current) return;
+
+    const nextElapsed = audioEngine.getSequenceElapsedSec();
+    elapsedRef.current = nextElapsed;
+
+    const computed = computeSequenceStateAtTime(nextElapsed, stagesRef.current);
+    beatHzRef.current = computed.beatHz;
+    carrierHzRef.current = computed.carrierHz;
+
+    if (updateReactState) {
+      setSessionElapsedSec(nextElapsed);
+      setBeatHz(computed.beatHz);
+      setCarrierHz(computed.carrierHz);
+    }
+
+    return computed;
+  }, []);
+
+  // Foreground 60fps UI loop + background keep-synced interval + visibility wake-up
   useEffect(() => {
-    let animId: number;
+    let animId: number | null = null;
 
-    const tick = (now: number) => {
-      const dt = Math.min(0.1, (now - lastFrameTimeRef.current) / 1000);
-      lastFrameTimeRef.current = now;
-
-      if (isPlayingRef.current && !isManualLockRef.current) {
-        const totalSec = stagesRef.current.reduce((acc, s) => acc + Math.max(0.5, s.durationMin) * 60, 0);
-        let nextElapsed = elapsedRef.current + dt;
-        if (nextElapsed >= totalSec) {
-          nextElapsed = 0; // loop or reset
-        }
-        elapsedRef.current = nextElapsed;
-        setSessionElapsedSec(nextElapsed);
-
-        const computed = computeSequenceStateAtTime(nextElapsed, stagesRef.current);
-        setBeatHz(computed.beatHz);
-        setCarrierHz(computed.carrierHz);
-        audioEngine.setFrequencies(computed.beatHz, computed.carrierHz);
+    const tick = () => {
+      if (typeof document === 'undefined' || !document.hidden) {
+        syncFromEngine(true);
+        animId = requestAnimationFrame(tick);
+      } else {
+        animId = null;
       }
-
-      animId = requestAnimationFrame(tick);
     };
 
-    animId = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(animId);
-  }, []);
+    const startRaf = () => {
+      if (animId === null && (typeof document === 'undefined' || !document.hidden)) {
+        animId = requestAnimationFrame(tick);
+      }
+    };
+
+    startRaf();
+
+    // Background interval keeps MediaSession position & loop horizon updated while locked
+    const bgInterval = setInterval(() => {
+      if (!isPlayingRef.current) return;
+      const isHidden = typeof document !== 'undefined' && document.hidden;
+      const computed = syncFromEngine(!isHidden);
+      if (computed) {
+        updateMediaSessionPosition(elapsedRef.current, computed.totalSec, true);
+      }
+    }, 2000);
+
+    const onVisibilityChange = () => {
+      if (!document.hidden) {
+        syncFromEngine(true);
+        startRaf();
+      } else if (animId !== null) {
+        cancelAnimationFrame(animId);
+        animId = null;
+      }
+    };
+
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    return () => {
+      if (animId !== null) cancelAnimationFrame(animId);
+      clearInterval(bgInterval);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, [syncFromEngine]);
 
   // Update audio mixer when levels change
   useEffect(() => {
@@ -121,16 +183,53 @@ export function useAudioSession() {
     );
   }, [binauralVol, noiseVol, noiseCutoff, droneVol]);
 
-  const togglePlay = useCallback(async () => {
-    if (isPlaying) {
-      audioEngine.pause();
-      setIsPlaying(false);
+  const startPlayback = useCallback(async () => {
+    if (isPlayingRef.current) return;
+    isPlayingRef.current = true;
+    setIsPlaying(true);
+
+    if (isManualLockRef.current) {
+      audioEngine.setFrequencies(beatHzRef.current, carrierHzRef.current);
     } else {
-      await audioEngine.play();
-      setIsPlaying(true);
-      lastFrameTimeRef.current = performance.now();
+      const computed = computeSequenceStateAtTime(elapsedRef.current, stagesRef.current);
+      beatHzRef.current = computed.beatHz;
+      carrierHzRef.current = computed.carrierHz;
+      setBeatHz(computed.beatHz);
+      setCarrierHz(computed.carrierHz);
     }
-  }, [isPlaying]);
+
+    await audioEngine.play(
+      stagesRef.current,
+      elapsedRef.current,
+      isManualLockRef.current
+    );
+
+    const total = stagesRef.current.reduce((acc, s) => acc + Math.max(0.5, s.durationMin) * 60, 0);
+    updateMediaSessionPosition(elapsedRef.current, total, true);
+  }, []);
+
+  const pausePlayback = useCallback(() => {
+    if (!isPlayingRef.current) return;
+    if (!isManualLockRef.current) {
+      const finalElapsed = audioEngine.getSequenceElapsedSec();
+      elapsedRef.current = finalElapsed;
+      setSessionElapsedSec(finalElapsed);
+    }
+    audioEngine.pause();
+    isPlayingRef.current = false;
+    setIsPlaying(false);
+
+    const total = stagesRef.current.reduce((acc, s) => acc + Math.max(0.5, s.durationMin) * 60, 0);
+    updateMediaSessionPosition(elapsedRef.current, total, false);
+  }, []);
+
+  const togglePlay = useCallback(async () => {
+    if (isPlayingRef.current) {
+      pausePlayback();
+    } else {
+      await startPlayback();
+    }
+  }, [pausePlayback, startPlayback]);
 
   const selectPreset = useCallback((index: number) => {
     const p = presets[index];
@@ -138,11 +237,13 @@ export function useAudioSession() {
 
     setActivePresetIndex(index);
     const newStages = normalizeStages(p.stages);
+    stagesRef.current = newStages;
     setStages(newStages);
-    setSessionElapsedSec(0);
     elapsedRef.current = 0;
+    setSessionElapsedSec(0);
 
-    if (isManualLock) {
+    if (isManualLockRef.current) {
+      isManualLockRef.current = false;
       setIsManualLock(false);
     }
 
@@ -156,25 +257,32 @@ export function useAudioSession() {
     audioEngine.setMixerLevels(binauralVol / 100, p.noiseVol / 100, p.noiseCutoff, droneVol / 100);
 
     const initial = computeSequenceStateAtTime(0, newStages);
+    beatHzRef.current = initial.beatHz;
+    carrierHzRef.current = initial.carrierHz;
     setBeatHz(initial.beatHz);
     setCarrierHz(initial.carrierHz);
-    audioEngine.setFrequencies(initial.beatHz, initial.carrierHz);
-  }, [presets, isManualLock, binauralVol, droneVol]);
+    audioEngine.scheduleSequence(newStages, 0, false);
+    updateMediaSessionPosition(0, initial.totalSec, isPlayingRef.current);
+  }, [presets, binauralVol, droneVol]);
 
   const scrubTimeline = useCallback((sec: number) => {
     const totalSec = stagesRef.current.reduce((acc, s) => acc + Math.max(0.5, s.durationMin) * 60, 0);
     const clamped = Math.max(0, Math.min(sec, totalSec));
-    setSessionElapsedSec(clamped);
     elapsedRef.current = clamped;
+    setSessionElapsedSec(clamped);
 
     if (isManualLockRef.current) {
+      isManualLockRef.current = false;
       setIsManualLock(false);
     }
 
     const state = computeSequenceStateAtTime(clamped, stagesRef.current);
+    beatHzRef.current = state.beatHz;
+    carrierHzRef.current = state.carrierHz;
     setBeatHz(state.beatHz);
     setCarrierHz(state.carrierHz);
-    audioEngine.setFrequencies(state.beatHz, state.carrierHz);
+    audioEngine.scheduleSequence(stagesRef.current, clamped, false);
+    updateMediaSessionPosition(clamped, totalSec, isPlayingRef.current);
   }, []);
 
   const resetTimeline = useCallback(() => {
@@ -182,20 +290,57 @@ export function useAudioSession() {
   }, [scrubTimeline]);
 
   const toggleManualLock = useCallback(() => {
-    setIsManualLock(prev => !prev);
+    const nextLock = !isManualLockRef.current;
+    if (nextLock) {
+      if (isPlayingRef.current) {
+        const curElapsed = audioEngine.getSequenceElapsedSec();
+        elapsedRef.current = curElapsed;
+        setSessionElapsedSec(curElapsed);
+      }
+      isManualLockRef.current = true;
+      setIsManualLock(true);
+      audioEngine.setFrequencies(beatHzRef.current, carrierHzRef.current);
+    } else {
+      isManualLockRef.current = false;
+      setIsManualLock(false);
+      const state = computeSequenceStateAtTime(elapsedRef.current, stagesRef.current);
+      beatHzRef.current = state.beatHz;
+      carrierHzRef.current = state.carrierHz;
+      setBeatHz(state.beatHz);
+      setCarrierHz(state.carrierHz);
+      audioEngine.scheduleSequence(stagesRef.current, elapsedRef.current, false);
+    }
   }, []);
 
   const setManualBeat = useCallback((hz: number) => {
-    if (!isManualLock) setIsManualLock(true);
+    if (!isManualLockRef.current) {
+      if (isPlayingRef.current) {
+        const curElapsed = audioEngine.getSequenceElapsedSec();
+        elapsedRef.current = curElapsed;
+        setSessionElapsedSec(curElapsed);
+      }
+      isManualLockRef.current = true;
+      setIsManualLock(true);
+    }
+    beatHzRef.current = hz;
     setBeatHz(hz);
-    audioEngine.setFrequencies(hz, carrierHz);
-  }, [isManualLock, carrierHz]);
+    audioEngine.setFrequencies(hz, carrierHzRef.current);
+  }, []);
 
   const setManualCarrier = useCallback((hz: number) => {
-    if (!isManualLock) setIsManualLock(true);
+    if (!isManualLockRef.current) {
+      if (isPlayingRef.current) {
+        const curElapsed = audioEngine.getSequenceElapsedSec();
+        elapsedRef.current = curElapsed;
+        setSessionElapsedSec(curElapsed);
+      }
+      isManualLockRef.current = true;
+      setIsManualLock(true);
+    }
+    carrierHzRef.current = hz;
     setCarrierHz(hz);
-    audioEngine.setFrequencies(beatHz, hz);
-  }, [isManualLock, beatHz]);
+    audioEngine.setFrequencies(beatHzRef.current, hz);
+  }, []);
 
   const setEarIsolation = useCallback((mode: EarIsolation) => {
     setEarIsolationState(mode);
@@ -214,12 +359,22 @@ export function useAudioSession() {
 
   const updateStages = useCallback((newStages: Stage[]) => {
     const normalized = normalizeStages(newStages);
+    stagesRef.current = normalized;
     setStages(normalized);
+
+    const newTotal = normalized.reduce((acc, s) => acc + Math.max(0.5, s.durationMin) * 60, 0);
+    if (elapsedRef.current > newTotal) {
+      elapsedRef.current = newTotal;
+      setSessionElapsedSec(newTotal);
+    }
+
     const state = computeSequenceStateAtTime(elapsedRef.current, normalized);
     if (!isManualLockRef.current) {
+      beatHzRef.current = state.beatHz;
+      carrierHzRef.current = state.carrierHz;
       setBeatHz(state.beatHz);
       setCarrierHz(state.carrierHz);
-      audioEngine.setFrequencies(state.beatHz, state.carrierHz);
+      audioEngine.scheduleSequence(normalized, elapsedRef.current, false);
     }
   }, []);
 
@@ -249,13 +404,86 @@ export function useAudioSession() {
         return [...prev, custom];
       });
       return true;
-    } catch (e) {
+    } catch {
       return false;
     }
   }, [noiseType, noiseVol, noiseCutoff, droneMode]);
 
   const totalSec = stages.reduce((acc, s) => acc + Math.max(0.5, s.durationMin) * 60, 0);
   const computedState = computeSequenceStateAtTime(sessionElapsedSec, stages);
+  const band = getBrainwaveBand(beatHz);
+
+  // Register OS Lock Screen / Headphone Media Session controls
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
+
+    const safeSetHandler = (
+      action: MediaSessionAction,
+      handler: MediaSessionActionHandler | null
+    ) => {
+      try {
+        navigator.mediaSession.setActionHandler(action, handler);
+      } catch {
+        // Ignore actions unsupported by specific mobile browsers
+      }
+    };
+
+    safeSetHandler('play', () => {
+      startPlayback();
+    });
+    safeSetHandler('pause', () => {
+      pausePlayback();
+    });
+    safeSetHandler('stop', () => {
+      pausePlayback();
+      resetTimeline();
+    });
+    safeSetHandler('seekbackward', (details) => {
+      scrubTimeline(elapsedRef.current - (details.seekOffset ?? 30));
+    });
+    safeSetHandler('seekforward', (details) => {
+      scrubTimeline(elapsedRef.current + (details.seekOffset ?? 30));
+    });
+    safeSetHandler('seekto', (details) => {
+      if (typeof details.seekTime === 'number') {
+        scrubTimeline(details.seekTime);
+      }
+    });
+
+    return () => {
+      safeSetHandler('play', null);
+      safeSetHandler('pause', null);
+      safeSetHandler('stop', null);
+      safeSetHandler('seekbackward', null);
+      safeSetHandler('seekforward', null);
+      safeSetHandler('seekto', null);
+    };
+  }, [startPlayback, pausePlayback, resetTimeline, scrubTimeline]);
+
+  // Keep OS Lock Screen playback state & metadata updated
+  const mediaTitle = isManualLock
+    ? `Manual Frequency Hold (${beatHz.toFixed(1)} Hz)`
+    : activePreset.name;
+  const mediaSubtitle = isManualLock
+    ? `${band.name} • ${carrierHz.toFixed(0)} Hz Carrier`
+    : `Stage ${computedState.stageIndex + 1}/${stages.length}: ${computedState.stageLabel}`;
+
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
+
+    navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
+
+    if (typeof MediaMetadata !== 'undefined') {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: mediaTitle,
+        artist: mediaSubtitle,
+        album: `NeuroSync • ${band.name}`,
+        artwork: [
+          { src: '/favicon.svg', sizes: '512x512', type: 'image/svg+xml' }
+        ]
+      });
+    }
+  }, [isPlaying, mediaTitle, mediaSubtitle, band.name]);
 
   const telemetry: TelemetryState = {
     beatHz,
@@ -272,7 +500,7 @@ export function useAudioSession() {
   return {
     presets,
     activePresetIndex,
-    activePreset: presets[activePresetIndex] || presets[0],
+    activePreset,
     stages,
     isPlaying,
     isManualLock,
