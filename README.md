@@ -1,4 +1,4 @@
-# BinBeat // Procedural Binaural Entrainment Lab
+# NeuroSync // Procedural Binaural Entrainment Lab
 
 A zero-asset, mathematically synthesized multi-stage binaural entrainment and acoustic soundscape synthesizer built with **React 19**, **TypeScript**, **Vite**, **Tailwind CSS**, and **Web Audio API DSP**. Ready for immediate deployment to **Cloudflare Pages**.
 
@@ -55,7 +55,7 @@ The production output is placed in the `dist/` directory.
 
 ## 🚀 Deploying to Cloudflare Pages
 
-BinBeat is pre-configured for Cloudflare Pages out of the box with `public/_headers` (optimized cache & permissions policies) and `public/_redirects` (SPA routing).
+NeuroSync is pre-configured for Cloudflare Pages out of the box with `public/_headers` (optimized cache & permissions policies) and `public/_redirects` (SPA routing).
 
 ### Method 1: Git Integration (Recommended)
 1. Push your repository to **GitHub** or **GitLab**.
@@ -75,7 +75,7 @@ Deploy directly from your terminal in seconds:
 npm run build
 
 # Deploy to Cloudflare Pages
-npx wrangler pages deploy dist --project-name=binbeat
+npx wrangler pages deploy dist --project-name=neurosync
 ```
 
 ---

@@ -1,6 +1,6 @@
 {
-  "name": "BinBeat // Procedural Binaural Entrainment Lab",
-  "short_name": "BinBeat",
+  "name": "NeuroSync // Procedural Binaural Entrainment Lab",
+  "short_name": "NeuroSync",
   "description": "Zero-asset multi-stage binaural entrainment and procedural sound synthesizer",
   "start_url": "/",
   "display": "standalone",
