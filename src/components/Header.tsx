@@ -30,7 +30,7 @@ export const Header: React.FC<HeaderProps> = ({
           <div>
             <div className="flex items-center gap-2">
               <h1 className="font-bold text-base sm:text-lg tracking-tight text-white">
-                BIN<span className="text-sky-400">BEAT</span>
+                NEURO<span className="text-sky-400">SYNC</span>
               </h1>
               <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20">
                 100% Math DSP
